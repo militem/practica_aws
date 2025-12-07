@@ -1,0 +1,7 @@
+'suffix', (10752, 32)
+'uploads-bucket', (11264, 50)
+'web-bucket', (11776, 46)
+'api-url', (12288, 69)
+'web-url', (12800, 89)
+'table-arn', (13312, 70)
+'sns-arn', (13824, 75)

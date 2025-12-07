@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serverless Inventory Dashboard</title>
+    <style>
+        :root {
+            --primary: #232f3e;
+            --secondary: #ff9900;
+            --bg: #f2f3f3;
+            --text: #333;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: var(--primary);
+            border-bottom: 2px solid var(--secondary);
+            padding-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        /* Estilo para el Select */
+        select {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            flex-grow: 1;
+            font-size: 16px;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #3e4e63;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        .status {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #666;
+            font-size: 0.9em;
+            height: 20px;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .empty {
+            text-align: center;
+            color: #888;
+            padding: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>📦 Dashboard de Inventario</h1>
+
+        <div class="controls">
+            <select id="store-select">
+                <option value="">📂 Ver todas las tiendas</option>
+                <option value="Berlin">Berlin</option>
+                <option value="Calcutta">Calcutta</option>
+                <option value="Karachi">Karachi</option>
+                <option value="Pusan">Pusan</option>
+                <option value="Shanghai">Shanghai</option>
+                <option value="Springfield">Springfield</option>
+            </select>
+
+            <button id="btn-load">Cargar Datos</button>
+        </div>
+
+        <div id="status" class="status">Listo.</div>
+
+        <table id="inventory-table">
+            <thead>
+                <tr>
+                    <th>Tienda (Store)</th>
+                    <th>Artículo (Item)</th>
+                    <th>Cantidad (Count)</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <div id="no-data" class="empty" style="display:none">No hay datos para mostrar.</div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        // NO CAMBIAR: El script de Python reemplazará esto automáticamente.
+        const API_BASE_URL = "REPLACE_ME_WITH_YOUR_INVOKE_URL";
+
+        const $select = document.getElementById('store-select');
+        const $btnLoad = document.getElementById('btn-load');
+        const $tbody = document.querySelector('#inventory-table tbody');
+        const $status = document.getElementById('status');
+        const $noData = document.getElementById('no-data');
+
+        const setStatus = (msg, isError = false) => {
+            $status.textContent = msg;
+            $status.className = isError ? 'status error' : 'status';
+        };
+
+        const loadData = async () => {
+            if (!API_BASE_URL || API_BASE_URL.startsWith("REPLACE_ME")) {
+                setStatus("Error: URL no configurada. Ejecuta deploy_script.py", true);
+                return;
+            }
+
+            const store = $select.value; // Leemos del SELECT
+            let url = API_BASE_URL;
+
+            if (store) {
+                // /items/Berlin
+                url = `${API_BASE_URL}/items/${encodeURIComponent(store)}`;
+            } else {
+                // /items (Todas)
+                url = `${API_BASE_URL}/items`;
+            }
+
+            setStatus(`Consultando: ${store || "Todas las tiendas"}...`);
+            $tbody.innerHTML = "";
+            $noData.style.display = 'none';
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                renderTable(data);
+                setStatus(`Datos cargados. Registros encontrados: ${data.length}`);
+
+            } catch (error) {
+                console.error(error);
+                setStatus(`Error: ${error.message}`, true);
+            }
+        };
+
+        const renderTable = (items) => {
+            if (!items || items.length === 0) {
+                $noData.style.display = 'block';
+                return;
+            }
+            // Ordenar alfabéticamente
+            items.sort((a, b) => (a.store > b.store) ? 1 : (a.store === b.store) ? ((a.item > b.item) ? 1 : -1) : -1);
+
+            items.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                <td><strong>${item.store}</strong></td>
+                <td>${item.item}</td>
+                <td>${item.count}</td>
+            `;
+                $tbody.appendChild(tr);
+            });
+        };
+
+        $btnLoad.addEventListener('click', loadData);
+
+        // Opcional: Cargar automáticamente al cambiar el select
+        $select.addEventListener('change', loadData);
+
+    </script>
+</body>
+
+</html>
